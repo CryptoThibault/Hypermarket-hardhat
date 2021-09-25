@@ -9,11 +9,16 @@ contract Hypermarket {
         address owner;
         uint256 registered;
     }
+    struct Basket {
+        uint256 id;
+        uint256 amount;
+    }
     struct Debt {
         uint256 pending;
         uint256 current;
     }
     mapping(uint256 => Product) private _products;
+    mapping(address => Basket[]) private _baskets;
     mapping(address => mapping(uint256 => uint256)) private _supplies;
     mapping(address => mapping(address => mapping(uint256 => Debt))) private _debts;
     uint256 private _counter;
@@ -37,15 +42,25 @@ contract Hypermarket {
     }
 
     function buyProduct(uint256 id, uint256 amount) public payable ReentrencyGuard {
-        require(supplyOwner(id) > 0, "Hypermarket: supply empty for this product");
+        require(supplyOwner(id) >= amount, "Hypermarket: supply empty for this product");
         address receiver = product(id).owner;
         _supplies[receiver][id] -= amount;
         _supplies[msg.sender][id] += amount;
         payable(receiver).transfer(product(id).price * amount);
     }
 
+    function basketProduct(uint256 id, uint256 amount) public {
+        _baskets[msg.sender].push(Basket({id: id, amount: amount}));
+    }
+
+    function buyBasketProduct() public {
+        for (uint256 i = 0; i <= _baskets[msg.sender].length; i++) {
+            buyProduct(basketOf(msg.sender, i).id, basketOf(msg.sender, i).amount);
+        }
+    }
+
     function exchangeProduct(uint256 id, uint256 amount) public {
-        require(supplyOf(msg.sender, id) > 0, "Hypermarket: user supply empty for this product");
+        require(supplyOf(msg.sender, id) >= amount, "Hypermarket: user supply empty for this product");
         _supplies[msg.sender][id] -= amount;
     }
 
@@ -85,6 +100,10 @@ contract Hypermarket {
 
     function product(uint256 id) public view returns (Product memory) {
         return _products[id];
+    }
+
+    function basketOf(address account, uint256 index) public view returns (Basket memory) {
+        return _baskets[account][index];
     }
 
     function supplyOf(address account, uint256 id) public view returns (uint256) {
